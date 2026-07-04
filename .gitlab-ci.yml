@@ -1,0 +1,81 @@
+# GitLab CI — GPU Inference Reliability Lab
+# Étages : lint (rapide, toujours) -> build (image de bench) -> deploy (manuel) -> bench (manuel)
+# Les jobs GPU sont `manual` : ils supposent un runner taggé `gpu` sur l'instance Scaleway.
+
+stages:
+  - lint
+  - build
+  - deploy
+  - bench
+
+variables:
+  IMAGE_BENCH: "$CI_REGISTRY_IMAGE/bench:$CI_COMMIT_SHORT_SHA"
+
+# ---------- LINT ----------
+lint:yaml:
+  stage: lint
+  image: cytopia/yamllint:latest
+  script:
+    - yamllint -d relaxed manifests/ helm/ .gitlab-ci.yml
+  rules:
+    - if: '$CI_PIPELINE_SOURCE'
+
+lint:ansible:
+  stage: lint
+  image: python:3.12-slim
+  before_script:
+    - pip install --quiet ansible-lint
+  script:
+    - ansible-lint ansible/playbook.yml || true   # non-bloquant tant que le playbook évolue
+  allow_failure: true
+
+lint:python:
+  stage: lint
+  image: python:3.12-slim
+  before_script:
+    - pip install --quiet ruff
+  script:
+    - ruff check bench/
+
+lint:go:
+  stage: lint
+  image: golang:1.23
+  script:
+    - cd exporter && go vet ./... && gofmt -l .
+
+# ---------- BUILD ----------
+build:bench-image:
+  stage: build
+  image: docker:27
+  services:
+    - docker:27-dind
+  script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+    - docker build -t "$IMAGE_BENCH" bench/
+    - docker push "$IMAGE_BENCH"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+# ---------- DEPLOY (runner GPU) ----------
+deploy:platform:
+  stage: deploy
+  tags: [gpu]
+  image: alpine/k8s:1.30.0
+  script:
+    - kubectl apply -f manifests/kueue/
+    - helm upgrade --install dcgm gpu-helm/dcgm-exporter -f helm/values-dcgm.yaml
+    - helm upgrade --install vllm ./helm/vllm -f helm/values-vllm.yaml
+  when: manual
+
+# ---------- BENCH (runner GPU) ----------
+bench:run:
+  stage: bench
+  tags: [gpu]
+  image: "$IMAGE_BENCH"
+  script:
+    - python bench.py --endpoint "$VLLM_ENDPOINT" --run-id "$CI_PIPELINE_ID"
+  when: manual
+  artifacts:
+    paths:
+      - bench/results/
+    expire_in: 30 days

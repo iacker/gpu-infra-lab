@@ -1,0 +1,10 @@
+# Bench results (JSON par run) — générés au run réel, pas committés.
+bench/results/*.json
+# Secrets & inventaire réel
+ansible/inventory.ini
+*.env
+# Go
+exporter/cost-exporter
+# Python
+__pycache__/
+*.pyc

@@ -1,0 +1,6 @@
+# Inventaire Ansible — copie en inventory.ini et remplis l'IP de l'instance Scaleway.
+[gpu_nodes]
+gpu-lab ansible_host=REMPLACER_IP ansible_user=ubuntu
+
+[gpu_nodes:vars]
+ansible_python_interpreter=/usr/bin/python3

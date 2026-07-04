@@ -1,0 +1,74 @@
+---
+# Provisioning d'un nœud GPU Scaleway : Ubuntu -> drivers NVIDIA -> k3s -> GPU Operator.
+# Idempotent. Testé sur Ubuntu 22.04/24.04, instance L4.
+- name: Provision GPU inference node
+  hosts: gpu_nodes
+  become: true
+  vars:
+    k3s_version: "v1.30.2+k3s1"
+    gpu_operator_version: "v24.6.1"
+
+  tasks:
+    - name: Base packages
+      ansible.builtin.apt:
+        name: [build-essential, curl, jq, python3-pip, ca-certificates]
+        update_cache: true
+        state: present
+
+    - name: Install NVIDIA driver (ubuntu-drivers autoinstall)
+      ansible.builtin.shell: |
+        ubuntu-drivers autoinstall
+      args:
+        creates: /usr/bin/nvidia-smi
+      notify: Reboot node
+
+    - name: Flush handlers (reboot if driver was installed)
+      ansible.builtin.meta: flush_handlers
+
+    - name: Verify GPU visible
+      ansible.builtin.command: nvidia-smi
+      changed_when: false
+      register: smi
+    - name: Show nvidia-smi
+      ansible.builtin.debug:
+        var: smi.stdout_lines
+
+    - name: Install k3s (single-node, disable traefik to keep it lean)
+      ansible.builtin.shell: |
+        curl -sfL https://get.k3s.io | \
+          INSTALL_K3S_VERSION={{ k3s_version }} \
+          INSTALL_K3S_EXEC="--disable traefik" sh -
+      args:
+        creates: /usr/local/bin/k3s
+
+    - name: Wait for node Ready
+      ansible.builtin.command: k3s kubectl wait --for=condition=Ready node --all --timeout=120s
+      changed_when: false
+
+    - name: Install Helm
+      ansible.builtin.shell: |
+        curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+      args:
+        creates: /usr/local/bin/helm
+
+    - name: Add NVIDIA GPU Operator (Helm)
+      ansible.builtin.shell: |
+        helm repo add nvidia https://helm.ngc.nvidia.com/nvidia && helm repo update
+        helm upgrade --install gpu-operator nvidia/gpu-operator \
+          --version {{ gpu_operator_version }} -n gpu-operator --create-namespace \
+          --set driver.enabled=false   # driver déjà posé par ubuntu-drivers
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      args:
+        creates: /var/lib/rancher/k3s/gpu-operator.installed
+      register: gpuop
+    - name: Mark GPU Operator installed
+      ansible.builtin.file:
+        path: /var/lib/rancher/k3s/gpu-operator.installed
+        state: touch
+      when: gpuop is changed
+
+  handlers:
+    - name: Reboot node
+      ansible.builtin.reboot:
+        reboot_timeout: 300

@@ -1,0 +1,30 @@
+# values-vllm.yaml — serving vLLM sous Kueue.
+# Le pod porte le label kueue.x-k8s.io/queue-name pour passer par l'admission Kueue.
+model: mistralai/Mistral-7B-Instruct-v0.3
+servedModelName: mistral-7b
+
+replicaCount: 1
+
+resources:
+  limits:
+    nvidia.com/gpu: 1
+    cpu: "6"
+    memory: 24Gi
+
+podLabels:
+  kueue.x-k8s.io/queue-name: inference-lq
+
+vllm:
+  # Args passés au serveur OpenAI-compatible.
+  extraArgs:
+    - --max-model-len=8192
+    - --gpu-memory-utilization=0.90
+    # --quantization=fp8   # à activer pour le bench quantif (J4)
+
+service:
+  type: ClusterIP
+  port: 8000
+
+# HF token via secret existant (ne jamais committer la valeur) :
+# kubectl create secret generic hf-token --from-literal=token=***
+hfTokenSecret: hf-token

@@ -1,0 +1,14 @@
+# values-dcgm.yaml — DCGM exporter : source de vérité puissance/util GPU.
+# Repo : helm repo add gpu-helm https://nvidia.github.io/dcgm-exporter/helm-charts
+serviceMonitor:
+  enabled: true            # scrape par Prometheus Operator
+  interval: 5s
+
+# Métriques clés pour le lab :
+#   DCGM_FI_DEV_POWER_USAGE   -> watts carte (récit énergie, SOURCE DE VÉRITÉ)
+#   DCGM_FI_DEV_GPU_UTIL      -> % util
+#   DCGM_FI_DEV_FB_USED       -> mémoire framebuffer utilisée
+#   DCGM_FI_PROF_PIPE_TENSOR_ACTIVE -> activité tensor cores
+extraEnv:
+  - name: DCGM_EXPORTER_INTERVAL
+    value: "1000"

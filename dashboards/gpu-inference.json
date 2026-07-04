@@ -1,0 +1,55 @@
+{
+  "title": "GPU Inference Reliability Lab",
+  "uid": "gpu-inference-lab",
+  "schemaVersion": 39,
+  "tags": ["gpu", "vllm", "dcgm", "sre"],
+  "timezone": "browser",
+  "refresh": "10s",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "GPU Utilization (%)",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "targets": [{"expr": "DCGM_FI_DEV_GPU_UTIL", "legendFormat": "gpu {{gpu}}"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "GPU Power (W) — DCGM, mesure réelle",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "targets": [{"expr": "DCGM_FI_DEV_POWER_USAGE", "legendFormat": "gpu {{gpu}}"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "vLLM Latency P50/P99 (s)",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "targets": [
+        {"expr": "histogram_quantile(0.50, sum(rate(vllm:e2e_request_latency_seconds_bucket[1m])) by (le))", "legendFormat": "P50"},
+        {"expr": "histogram_quantile(0.99, sum(rate(vllm:e2e_request_latency_seconds_bucket[1m])) by (le))", "legendFormat": "P99"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Throughput (tokens/s)",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "targets": [{"expr": "sum(rate(vllm:generation_tokens_total[1m]))", "legendFormat": "tokens/s"}]
+    },
+    {
+      "type": "stat",
+      "title": "€ / token (exporter Go)",
+      "gridPos": {"h": 6, "w": 8, "x": 0, "y": 16},
+      "targets": [{"expr": "lab_eur_per_token"}]
+    },
+    {
+      "type": "stat",
+      "title": "J / 1k tokens — DCGM (mesure)",
+      "gridPos": {"h": 6, "w": 8, "x": 8, "y": 16},
+      "targets": [{"expr": "lab_joules_per_1k_tokens"}]
+    },
+    {
+      "type": "stat",
+      "title": "KV cache / FB used (%)",
+      "gridPos": {"h": 6, "w": 8, "x": 16, "y": 16},
+      "targets": [{"expr": "100 * DCGM_FI_DEV_FB_USED / DCGM_FI_DEV_FB_TOTAL"}]
+    }
+  ]
+}
