@@ -11,7 +11,7 @@ Artefact de candidature **SRE — AI GPU Clusters (Scaleway)** et preuve opérat
 
 | Exigence poste | Preuve dans ce repo |
 |---|---|
-| Observabilité (Prometheus/Grafana/Elastic) | `dashboards/` + DCGM + Kepler + Loki |
+| Observabilité (Prometheus/Grafana/Elastic) | `dashboards/` + DCGM + Loki |
 | Monitoring → diagnostic → **remédiation** + on-call | `runbooks/` + injection de pannes |
 | GPU & HPC | vLLM sur GPU, DCGM, scheduling multi-tenant Kueue |
 | IaC (Ansible) | `ansible/` — provisioning nœud + k3s + GPU Operator |
@@ -28,19 +28,17 @@ Ansible ──> k3s + NVIDIA GPU Operator
                 ├─ Kueue        (admission, quota GPU, multi-tenant)
                 ├─ vLLM          (Mistral-7B / Llama-3-8B)
                 ├─ DCGM exporter (puissance GPU RÉELLE — source de vérité énergie)
-                ├─ Kepler        (estimation node/CPU — voir garde-fou ci-dessous)
                 └─ Prometheus + Grafana + Loki
                         │
              bench/ (Python) ──> MariaDB (registre runs)
              exporter/ (Go)  ──> métrique €/token
 ```
 
-## ⚠️ Garde-fou énergie (DCGM vs Kepler)
+## ⚠️ Garde-fou énergie
 
-**DCGM = mesure GPU réelle** (`DCGM_FI_DEV_POWER_USAGE`, watts carte). C'est la source de vérité.
-**Kepler = estimation** ; sur instance cloud virtualisée il n'a souvent pas accès à RAPL et
-retombe sur un modèle. Il est ici pour le récit efficacité node/CPU, **jamais** vendu comme mesure GPU.
-Vendre une estimation comme une mesure = le flou que ce lab interdit.
+**DCGM = mesure GPU réelle** (`DCGM_FI_DEV_POWER_USAGE`, watts carte). C'est la source de vérité
+de tout le récit énergie du lab. Aucune estimation modélisée n'est présentée comme une mesure —
+la rigueur mesure/estimation est l'argument, pas un détail.
 
 ## Quickstart
 
