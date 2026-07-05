@@ -2,676 +2,183 @@
   "title": "GPU Inference Reliability Lab",
   "uid": "gpu-inference-lab",
   "schemaVersion": 39,
-  "version": 5,
-  "tags": [
-    "gpu",
-    "vllm",
-    "dcgm",
-    "sre"
-  ],
+  "version": 6,
+  "tags": ["gpu", "vllm", "dcgm", "sre", "kueue"],
   "timezone": "browser",
-  "refresh": "10s",
+  "refresh": "5s",
   "panels": [
     {
       "id": 1,
       "type": "stat",
-      "title": "GPU util now (%)",
-      "gridPos": {
-        "h": 5,
-        "w": 6,
-        "x": 0,
-        "y": 0
-      },
-      "targets": [
-        {
-          "expr": "avg(DCGM_FI_DEV_GPU_UTIL)",
-          "legendFormat": "now",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "refId": "A"
-        }
-      ],
-      "options": {
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "orientation": "auto",
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto"
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          }
-        },
-        "overrides": []
-      }
+      "title": "GPU util",
+      "description": "DCGM_FI_DEV_GPU_UTIL — % d'occupation des SM. Haut = le GPU travaille (souhaité sous charge).",
+      "gridPos": {"h": 5, "w": 4, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "avg(DCGM_FI_DEV_GPU_UTIL)", "legendFormat": "util"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100, "decimals": 0, "color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "text", "value": null}, {"color": "green", "value": 5}]}}, "overrides": []},
+      "options": {"reduceOptions": {"values": false, "calcs": ["lastNotNull"], "fields": ""}, "colorMode": "value", "graphMode": "area", "justifyMode": "auto"}
     },
     {
       "id": 2,
       "type": "stat",
-      "title": "GPU power now (W)",
-      "gridPos": {
-        "h": 5,
-        "w": 6,
-        "x": 6,
-        "y": 0
-      },
-      "targets": [
-        {
-          "expr": "avg(DCGM_FI_DEV_POWER_USAGE)",
-          "legendFormat": "now",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "refId": "A"
-        }
-      ],
-      "options": {
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "orientation": "auto",
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto"
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          }
-        },
-        "overrides": []
-      }
+      "title": "GPU power (cap 72 W)",
+      "description": "DCGM_FI_DEV_POWER_USAGE — puissance carte MESURÉE (pas estimée). Cap L4 = 72 W : rouge = au plafond.",
+      "gridPos": {"h": 5, "w": 4, "x": 4, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "avg(DCGM_FI_DEV_POWER_USAGE)", "legendFormat": "watts"}],
+      "fieldConfig": {"defaults": {"unit": "watt", "min": 0, "max": 78, "decimals": 1, "color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 60}, {"color": "red", "value": 70}]}}, "overrides": []},
+      "options": {"reduceOptions": {"values": false, "calcs": ["lastNotNull"], "fields": ""}, "colorMode": "value", "graphMode": "area", "justifyMode": "auto"}
     },
     {
       "id": 3,
       "type": "stat",
-      "title": "GPU power peak 15m (W)",
-      "gridPos": {
-        "h": 5,
-        "w": 6,
-        "x": 12,
-        "y": 0
-      },
-      "targets": [
-        {
-          "expr": "max(max_over_time(DCGM_FI_DEV_POWER_USAGE[15m]))",
-          "legendFormat": "peak",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "refId": "A"
-        }
-      ],
-      "options": {
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "orientation": "auto",
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto"
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          }
-        },
-        "overrides": []
-      }
+      "title": "TTFT p95 (5m)",
+      "description": "Time-to-first-token p95 — le ressenti utilisateur. SLO : < 3 s.",
+      "gridPos": {"h": 5, "w": 4, "x": 8, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "histogram_quantile(0.95, sum(rate(vllm:time_to_first_token_seconds_bucket[5m])) by (le))", "legendFormat": "p95"}],
+      "fieldConfig": {"defaults": {"unit": "s", "decimals": 2, "color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 1}, {"color": "red", "value": 3}]}}, "overrides": []},
+      "options": {"reduceOptions": {"values": false, "calcs": ["lastNotNull"], "fields": ""}, "colorMode": "value", "graphMode": "area", "justifyMode": "auto"}
     },
     {
       "id": 4,
       "type": "stat",
-      "title": "Generated tokens total",
-      "gridPos": {
-        "h": 5,
-        "w": 6,
-        "x": 18,
-        "y": 0
-      },
-      "targets": [
-        {
-          "expr": "sum(vllm:generation_tokens_total)",
-          "legendFormat": "tokens",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "refId": "A"
-        }
-      ],
-      "options": {
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "orientation": "auto",
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto"
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          }
-        },
-        "overrides": []
-      }
+      "title": "Débit génération",
+      "description": "Tokens générés par seconde (vLLM, rate 1m).",
+      "gridPos": {"h": 5, "w": 4, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum(rate(vllm:generation_tokens_total[1m]))", "legendFormat": "tok/s"}],
+      "fieldConfig": {"defaults": {"unit": "short", "decimals": 1, "color": {"mode": "fixed", "fixedColor": "blue"}}, "overrides": []},
+      "options": {"reduceOptions": {"values": false, "calcs": ["lastNotNull"], "fields": ""}, "colorMode": "value", "graphMode": "area", "justifyMode": "auto"}
     },
     {
       "id": 5,
       "type": "stat",
-      "title": "Prompt throughput now (tok/s)",
-      "gridPos": {
-        "h": 5,
-        "w": 6,
-        "x": 0,
-        "y": 5
-      },
-      "targets": [
-        {
-          "expr": "sum(vllm:avg_prompt_throughput_toks_per_s)",
-          "legendFormat": "prompt",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "refId": "A"
-        }
-      ],
-      "options": {
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "orientation": "auto",
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto"
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          }
-        },
-        "overrides": []
-      }
+      "title": "KV cache",
+      "description": "Occupation du cache KV vLLM. > 90 % = risque de préemption (runbook kv-cache-saturation).",
+      "gridPos": {"h": 5, "w": 4, "x": 16, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "avg(vllm:gpu_cache_usage_perc)", "legendFormat": "kv"}],
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1, "decimals": 1, "color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.7}, {"color": "red", "value": 0.9}]}}, "overrides": []},
+      "options": {"reduceOptions": {"values": false, "calcs": ["lastNotNull"], "fields": ""}, "colorMode": "value", "graphMode": "area", "justifyMode": "auto"}
     },
     {
       "id": 6,
       "type": "stat",
-      "title": "Generation throughput now (tok/s)",
-      "gridPos": {
-        "h": 5,
-        "w": 6,
-        "x": 6,
-        "y": 5
-      },
-      "targets": [
-        {
-          "expr": "sum(vllm:avg_generation_throughput_toks_per_s)",
-          "legendFormat": "gen",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "refId": "A"
-        }
-      ],
-      "options": {
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "orientation": "auto",
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto"
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          }
-        },
-        "overrides": []
-      }
-    },
-    {
-      "id": 7,
-      "type": "stat",
-      "title": "TTFT p95 (s, 5m)",
-      "gridPos": {
-        "h": 5,
-        "w": 6,
-        "x": 12,
-        "y": 5
-      },
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(vllm:time_to_first_token_seconds_bucket[5m])) by (le))",
-          "legendFormat": "p95",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "refId": "A"
-        }
-      ],
-      "options": {
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "orientation": "auto",
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto"
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          }
-        },
-        "overrides": []
-      }
-    },
-    {
-      "id": 8,
-      "type": "stat",
-      "title": "GPU KV cache used (%)",
-      "gridPos": {
-        "h": 5,
-        "w": 6,
-        "x": 18,
-        "y": 5
-      },
-      "targets": [
-        {
-          "expr": "avg(vllm:gpu_cache_usage_perc)",
-          "legendFormat": "cache",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "refId": "A"
-        }
-      ],
-      "options": {
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "orientation": "auto",
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto"
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          }
-        },
-        "overrides": []
-      }
+      "title": "Requêtes en attente",
+      "description": "File vLLM. > 0 en continu = capacité insuffisante ou incident.",
+      "gridPos": {"h": 5, "w": 4, "x": 20, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum(vllm:num_requests_waiting)", "legendFormat": "waiting"}],
+      "fieldConfig": {"defaults": {"unit": "short", "decimals": 0, "color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 1}, {"color": "red", "value": 5}]}}, "overrides": []},
+      "options": {"reduceOptions": {"values": false, "calcs": ["lastNotNull"], "fields": ""}, "colorMode": "value", "graphMode": "area", "justifyMode": "auto"}
     },
     {
       "id": 9,
       "type": "timeseries",
-      "title": "GPU utilization over time (%)",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 10
-      },
-      "targets": [
-        {
-          "expr": "DCGM_FI_DEV_GPU_UTIL",
-          "legendFormat": "gpu {{gpu}}",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "refId": "A"
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "single"
-        }
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          }
-        },
-        "overrides": []
-      }
+      "title": "GPU — utilisation (%)",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 5},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "DCGM_FI_DEV_GPU_UTIL", "legendFormat": "gpu {{gpu}}"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100, "custom": {"fillOpacity": 15, "lineWidth": 2}}, "overrides": []},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
     },
     {
       "id": 10,
       "type": "timeseries",
-      "title": "GPU power over time (W)",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 10
-      },
-      "targets": [
-        {
-          "expr": "DCGM_FI_DEV_POWER_USAGE",
-          "legendFormat": "gpu {{gpu}}",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "refId": "A"
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "single"
-        }
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          }
-        },
-        "overrides": []
-      }
+      "title": "GPU — puissance mesurée DCGM (W) — ligne rouge = cap 72 W",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 5},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "DCGM_FI_DEV_POWER_USAGE", "legendFormat": "gpu {{gpu}}"}],
+      "fieldConfig": {"defaults": {"unit": "watt", "min": 0, "max": 78, "custom": {"fillOpacity": 15, "lineWidth": 2, "thresholdsStyle": {"mode": "line"}}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 72}]}}, "overrides": []},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
     },
     {
       "id": 11,
       "type": "timeseries",
-      "title": "TTFT p50 / p95 over time (s)",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 18
-      },
+      "title": "Latence TTFT p50 / p95 (s)",
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 13},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
-        {
-          "expr": "histogram_quantile(0.50, sum(rate(vllm:time_to_first_token_seconds_bucket[5m])) by (le))",
-          "legendFormat": "p50",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "refId": "A"
-        },
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(vllm:time_to_first_token_seconds_bucket[5m])) by (le))",
-          "legendFormat": "p95",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "refId": "B"
-        }
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "histogram_quantile(0.50, sum(rate(vllm:time_to_first_token_seconds_bucket[5m])) by (le))", "legendFormat": "p50"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "histogram_quantile(0.95, sum(rate(vllm:time_to_first_token_seconds_bucket[5m])) by (le))", "legendFormat": "p95"}
       ],
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "single"
-        }
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          }
-        },
-        "overrides": []
-      }
+      "fieldConfig": {"defaults": {"unit": "s", "custom": {"fillOpacity": 10, "lineWidth": 2}}, "overrides": []},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
     },
     {
       "id": 12,
       "type": "timeseries",
-      "title": "Prompt vs generation throughput (tok/s)",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 18
-      },
+      "title": "Débit prompt vs génération (tok/s)",
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 13},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
-        {
-          "expr": "sum(vllm:avg_prompt_throughput_toks_per_s)",
-          "legendFormat": "prompt",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "refId": "A"
-        },
-        {
-          "expr": "sum(vllm:avg_generation_throughput_toks_per_s)",
-          "legendFormat": "generation",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "refId": "B"
-        }
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum(rate(vllm:prompt_tokens_total[1m]))", "legendFormat": "prompt"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum(rate(vllm:generation_tokens_total[1m]))", "legendFormat": "génération"}
       ],
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "single"
-        }
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          }
-        },
-        "overrides": []
-      }
+      "fieldConfig": {"defaults": {"unit": "short", "custom": {"fillOpacity": 10, "lineWidth": 2}}, "overrides": []},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
     },
     {
       "id": 13,
       "type": "timeseries",
-      "title": "Running vs waiting requests",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 26
-      },
+      "title": "Requêtes running / waiting",
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 13},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
-        {
-          "expr": "sum(vllm:num_requests_running)",
-          "legendFormat": "running",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "refId": "A"
-        },
-        {
-          "expr": "sum(vllm:num_requests_waiting)",
-          "legendFormat": "waiting",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "refId": "B"
-        }
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum(vllm:num_requests_running)", "legendFormat": "running"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum(vllm:num_requests_waiting)", "legendFormat": "waiting"}
       ],
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "single"
-        }
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          }
-        },
-        "overrides": []
-      }
+      "fieldConfig": {"defaults": {"unit": "short", "min": 0, "custom": {"fillOpacity": 10, "lineWidth": 2}}, "overrides": []},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
     },
     {
       "id": 14,
       "type": "timeseries",
-      "title": "VRAM used (MiB)",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 26
-      },
-      "targets": [
-        {
-          "expr": "DCGM_FI_DEV_FB_USED",
-          "legendFormat": "gpu {{gpu}}",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "refId": "A"
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "single"
-        }
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          }
-        },
-        "overrides": []
-      }
+      "title": "VRAM utilisée (MiB) — préallocation vLLM 90 %",
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 21},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "DCGM_FI_DEV_FB_USED", "legendFormat": "gpu {{gpu}}"}],
+      "fieldConfig": {"defaults": {"unit": "mbytes", "min": 0, "max": 24576, "custom": {"fillOpacity": 15, "lineWidth": 2}}, "overrides": []},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
+    },
+    {
+      "id": 15,
+      "type": "timeseries",
+      "title": "Coût marginal (€/token) — cost-exporter Go",
+      "description": "lab_eur_per_token : prix horaire GPU / débit réel. Émis seulement quand il y a du trafic (pas de valeur fabriquée).",
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 21},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "lab_eur_per_token", "legendFormat": "€/token"}],
+      "fieldConfig": {"defaults": {"unit": "currencyEUR", "decimals": 7, "custom": {"fillOpacity": 10, "lineWidth": 2}, "color": {"mode": "fixed", "fixedColor": "orange"}}, "overrides": []},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
+    },
+    {
+      "id": 16,
+      "type": "timeseries",
+      "title": "Énergie (J / 1k tokens) — DCGM, mesure réelle",
+      "description": "lab_joules_per_1k_tokens = watts DCGM / débit tokens × 1000. Référence bench : FP16 ≈ 4000, FP8 ≈ 2000.",
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 21},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "lab_joules_per_1k_tokens", "legendFormat": "J/1k tok"}],
+      "fieldConfig": {"defaults": {"unit": "joule", "decimals": 0, "custom": {"fillOpacity": 10, "lineWidth": 2}, "color": {"mode": "fixed", "fixedColor": "purple"}}, "overrides": []},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
+    },
+    {
+      "id": 17,
+      "type": "alertlist",
+      "title": "Alertes SLO (VLLMDown, P99, KV cache, cap, température)",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 29},
+      "options": {"alertName": "", "dashboardAlerts": false, "groupBy": [], "groupMode": "default", "maxItems": 10, "sortOrder": 1, "stateFilter": {"error": true, "firing": true, "noData": false, "normal": false, "pending": true}, "viewMode": "list"}
+    },
+    {
+      "id": 18,
+      "type": "logs",
+      "title": "Logs vLLM (Loki)",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 29},
+      "datasource": {"type": "loki", "uid": "P8E80F9AEF21F6940"},
+      "targets": [{"refId": "A", "datasource": {"type": "loki", "uid": "P8E80F9AEF21F6940"}, "expr": "{app=\"vllm-mistral\"}"}],
+      "options": {"showTime": true, "wrapLogMessage": true, "sortOrder": "Descending", "enableLogDetails": true, "dedupStrategy": "none", "prettifyLogMessage": false, "showCommonLabels": false, "showLabels": false}
     }
   ]
 }
