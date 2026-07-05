@@ -27,17 +27,23 @@ Méthodologie énergie (mesure DCGM vs estimation) : [`docs/energy-methodology.m
 
 ## Architecture
 
-```
-Ansible (2 playbooks idempotents)
-  └─> k3s + NVIDIA GPU Operator (driver préinstallé image Scaleway)
-        ├─ vLLM            Mistral-7B, API OpenAI-compatible, cache modèle hostPath
-        ├─ Kueue v0.10.1   ResourceFlavor -> ClusterQueue -> LocalQueue (quota GPU)
-        │                    └─ les Jobs de bench passent par l'admission Kueue
-        ├─ DCGM exporter   puissance carte RÉELLE = source de vérité énergie
-        ├─ kube-prometheus-stack   scrape 5s + dashboard 14 panels + Loki (logs)
-        ├─ Alertmanager    5 règles SLO -> Telegram (astreinte)
-        ├─ cost-exporter   (Go) €/token et J/1k tokens en métriques natives
-        └─ MariaDB         registre des runs de bench (bench_runs)
+### Diagramme d'architecture
+
+```mermaid
+flowchart TD
+    A["Ansible · 2 playbooks idempotents"] --> K["k3s + NVIDIA GPU Operator<br/>(Scaleway L4)"]
+    K --> V["vLLM · Mistral-7B<br/>API OpenAI-compatible"]
+    K --> Q["Kueue v0.10.1<br/>ResourceFlavor → ClusterQueue → LocalQueue"]
+    K --> D["DCGM exporter<br/>puissance carte RÉELLE = vérité énergie"]
+    K --> P["kube-prometheus-stack<br/>scrape 5s · Grafana 14 panels · Loki"]
+
+    Q -->|admission ADMITTED| B["Jobs de bench<br/>latence · débit · coût"]
+    B --> M["MariaDB · registre bench_runs"]
+
+    V -->|métriques vllm:*| P
+    D -->|watts| P
+    C["cost-exporter (Go)<br/>€/token · J/1k tokens"] --> P
+    P --> AL["Alertmanager · 5 règles SLO"] -->|astreinte| T["Telegram"]
 ```
 
 ## Ce que le lab démontre, preuve à l'appui
