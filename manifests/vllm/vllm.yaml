@@ -1,0 +1,108 @@
+# vLLM — serveur OpenAI-compatible, Mistral-7B-Instruct-v0.3, admission via Kueue.
+# Prérequis : secret hf-token (kubectl create secret generic hf-token --from-literal=token=***)
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-mistral
+  namespace: default
+  labels:
+    app: vllm-mistral
+spec:
+  replicas: 1
+  # 1 seul GPU : RollingUpdate deadlocke (le nouveau pod attend le GPU tenu par l'ancien).
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: vllm-mistral
+  template:
+    metadata:
+      labels:
+        app: vllm-mistral
+        kueue.x-k8s.io/queue-name: inference-lq
+    spec:
+      # k3s + GPU Operator : la RuntimeClass nvidia n'est pas le runtime par défaut,
+      # sans elle le conteneur ne voit pas /dev/nvidia* ("Failed to infer device type").
+      runtimeClassName: nvidia
+      containers:
+        - name: vllm
+          image: vllm/vllm-openai:v0.6.6
+          args:
+            - --model=mistralai/Mistral-7B-Instruct-v0.3
+            - --served-model-name=mistral-7b
+            - --max-model-len=8192
+            - --gpu-memory-utilization=0.90
+            - --tokenizer-mode=mistral
+          env:
+            - name: HUGGING_FACE_HUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: hf-token
+                  key: token
+          ports:
+            - containerPort: 8000
+              name: http
+          resources:
+            limits:
+              nvidia.com/gpu: 1
+              cpu: "6"
+              memory: 24Gi
+            requests:
+              nvidia.com/gpu: 1
+              cpu: "4"
+              memory: 16Gi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            failureThreshold: 60
+          volumeMounts:
+            - name: model-cache
+              mountPath: /root/.cache/huggingface
+            - name: shm
+              mountPath: /dev/shm
+      volumes:
+        - name: model-cache
+          hostPath:
+            path: /var/lib/vllm-cache
+            type: DirectoryOrCreate
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 8Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm-mistral
+  namespace: default
+  labels:
+    app: vllm-mistral
+spec:
+  type: ClusterIP
+  selector:
+    app: vllm-mistral
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+---
+# Scrape des métriques vLLM natives (vllm:* — latence TTFT/TPOT, tokens/s, KV cache)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: vllm-mistral
+  namespace: default
+  labels:
+    release: kps
+spec:
+  selector:
+    matchLabels:
+      app: vllm-mistral
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 5s

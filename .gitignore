@@ -8,3 +8,5 @@ exporter/cost-exporter
 # Python
 __pycache__/
 *.pyc
+# État OMC (session Claude Code)
+.omc/

@@ -1,6 +1,6 @@
 # Kueue : quota GPU multi-tenant. ResourceFlavor -> ClusterQueue -> LocalQueue.
 # Suppose Kueue installé : kubectl apply --server-side -f \
-#   https://github.com/kubernetes-sigs/kueue/releases/download/v0.8.1/manifests.yaml
+#   https://github.com/kubernetes-sigs/kueue/releases/download/v0.10.1/manifests.yaml
 ---
 apiVersion: kueue.x-k8s.io/v1beta1
 kind: ResourceFlavor

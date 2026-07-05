@@ -1,0 +1,77 @@
+---
+# Couche applicative : Kueue -> kube-prometheus-stack -> Loki -> quota Kueue -> vLLM.
+# Suppose playbook.yml déjà passé (k3s + GPU Operator up).
+# Le secret hf-token doit exister avant que le pod vLLM ne tire le modèle :
+#   ansible-playbook -i inventory.ini apps.yml -e hf_token=hf_xxx   (ou secret déjà créé)
+- name: Deploy inference + observability stack
+  hosts: gpu_nodes
+  become: true
+  vars:
+    # >= v0.9 requis : v0.8.x embarque kube-rbac-proxy depuis gcr.io/kubebuilder (registre fermé -> ImagePullBackOff)
+    kueue_version: "v0.10.1"
+    repo_root: "{{ playbook_dir | dirname }}"
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  tasks:
+    - name: Install Kueue
+      ansible.builtin.shell: |
+        k3s kubectl apply --server-side -f \
+          https://github.com/kubernetes-sigs/kueue/releases/download/{{ kueue_version }}/manifests.yaml
+        k3s kubectl -n kueue-system wait --for=condition=Available deploy/kueue-controller-manager --timeout=180s
+      args:
+        creates: /var/lib/rancher/k3s/kueue.installed
+      register: kueue
+    - name: Mark Kueue installed
+      ansible.builtin.file:
+        path: /var/lib/rancher/k3s/kueue.installed
+        state: touch
+      when: kueue is changed
+
+    - name: Add Helm repos (prometheus-community, grafana)
+      ansible.builtin.shell: |
+        helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+        helm repo add grafana https://grafana.github.io/helm-charts
+        helm repo update
+      changed_when: false
+
+    - name: Install kube-prometheus-stack (Prometheus + Grafana)
+      ansible.builtin.shell: |
+        helm upgrade --install kps prometheus-community/kube-prometheus-stack \
+          -n monitoring --create-namespace \
+          --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false \
+          --set prometheus.prometheusSpec.podMonitorSelectorNilUsesHelmValues=false \
+          --set prometheus.prometheusSpec.scrapeInterval=5s \
+          --set grafana.adminPassword=gpulab \
+          --wait --timeout 10m
+
+    - name: Enable DCGM exporter ServiceMonitor (GPU Operator)
+      ansible.builtin.shell: |
+        helm upgrade gpu-operator nvidia/gpu-operator -n gpu-operator --reuse-values \
+          --version v24.6.1 \
+          --set dcgmExporter.serviceMonitor.enabled=true \
+          --set dcgmExporter.serviceMonitor.interval=5s
+
+    - name: Install Loki + Promtail (logs)
+      ansible.builtin.shell: |
+        helm upgrade --install loki grafana/loki-stack -n monitoring \
+          --set loki.isDefault=false --set promtail.enabled=true \
+          --wait --timeout 5m
+
+    - name: Copy Kueue quota + vLLM manifests
+      ansible.builtin.copy:
+        src: "{{ repo_root }}/manifests/"
+        dest: /root/manifests/
+
+    - name: Apply Kueue quota (ResourceFlavor/ClusterQueue/LocalQueue)
+      ansible.builtin.shell: k3s kubectl apply -f /root/manifests/kueue/quota.yaml
+
+    - name: Create HF token secret
+      ansible.builtin.shell: |
+        k3s kubectl create secret generic hf-token \
+          --from-literal=token={{ hf_token }} \
+          --dry-run=client -o yaml | k3s kubectl apply -f -
+      when: hf_token is defined
+      no_log: true
+
+    - name: Deploy vLLM
+      ansible.builtin.shell: k3s kubectl apply -f /root/manifests/vllm/vllm.yaml
