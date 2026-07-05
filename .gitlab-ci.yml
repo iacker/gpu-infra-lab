@@ -63,19 +63,21 @@ deploy:platform:
   image: alpine/k8s:1.30.0
   script:
     - kubectl apply -f manifests/kueue/
-    - helm upgrade --install dcgm gpu-helm/dcgm-exporter -f helm/values-dcgm.yaml
-    - helm upgrade --install vllm ./helm/vllm -f helm/values-vllm.yaml
+    - kubectl apply -f manifests/vllm/
+    - kubectl apply -f manifests/alerting/
+    - kubectl apply -f manifests/mariadb/
+    - kubectl apply -f manifests/exporter/
   when: manual
 
 # ---------- BENCH (runner GPU) ----------
+# Le bench passe par Kueue : Job kubernetes admis via la LocalQueue inference-lq.
 bench:run:
   stage: bench
   tags: [gpu]
-  image: "$IMAGE_BENCH"
+  image: alpine/k8s:1.30.0
   script:
-    - python bench.py --endpoint "$VLLM_ENDPOINT" --run-id "$CI_PIPELINE_ID"
+    - kubectl delete job bench-run --ignore-not-found
+    - sed "s/value: \"\"/value: \"ci-$CI_PIPELINE_ID\"/" manifests/bench/job.yaml | kubectl apply -f -
+    - kubectl wait --for=condition=Complete job/bench-run --timeout=15m
+    - kubectl logs job/bench-run
   when: manual
-  artifacts:
-    paths:
-      - bench/results/
-    expire_in: 30 days

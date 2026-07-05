@@ -1,0 +1,78 @@
+# cost-exporter (Go) — €/token et J/1k tokens en métriques Prometheus.
+# Source montée depuis la ConfigMap cost-exporter-src (main.go, prom.go, go.mod, go.sum) :
+#   kubectl create configmap cost-exporter-src --from-file=exporter/
+# Compilé au démarrage dans golang:1.23 (lab single-node, pas de registre d'images).
+# En prod : image buildée par la CI (voir .gitlab-ci.yml, job build).
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cost-exporter
+  namespace: default
+  labels:
+    app: cost-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cost-exporter
+  template:
+    metadata:
+      labels:
+        app: cost-exporter
+    spec:
+      containers:
+        - name: exporter
+          image: golang:1.23
+          workingDir: /app
+          command: ["/bin/sh", "-c"]
+          args:
+            - cp /src/* /app/ && go mod download &&
+              go run . --prometheus-url=http://kps-kube-prometheus-stack-prometheus.monitoring:9090
+              --gpu-eur-hour=0.75 --addr=:9105 --interval=15s
+          ports:
+            - containerPort: 9105
+              name: metrics
+          env:
+            - name: GOCACHE
+              value: /tmp/gocache
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {cpu: "1", memory: 1Gi}
+          volumeMounts:
+            - name: src
+              mountPath: /src
+      volumes:
+        - name: src
+          configMap:
+            name: cost-exporter-src
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cost-exporter
+  namespace: default
+  labels:
+    app: cost-exporter
+spec:
+  selector:
+    app: cost-exporter
+  ports:
+    - name: metrics
+      port: 9105
+      targetPort: 9105
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: cost-exporter
+  namespace: default
+  labels:
+    release: kps
+spec:
+  selector:
+    matchLabels:
+      app: cost-exporter
+  endpoints:
+    - port: metrics
+      interval: 15s

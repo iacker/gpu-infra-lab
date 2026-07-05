@@ -1,0 +1,87 @@
+# MariaDB — registre d'expériences de bench (exigence explicite de l'offre).
+# Secret à créer hors repo :
+#   kubectl create secret generic mariadb-creds \
+#     --from-literal=root-password=*** --from-literal=password=***
+# Le schéma (bench/schema.sql) est monté en init via la ConfigMap mariadb-init :
+#   kubectl create configmap mariadb-init --from-file=schema.sql=bench/schema.sql
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mariadb-data
+  namespace: default
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mariadb
+  namespace: default
+  labels:
+    app: mariadb
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate          # volume RWO
+  selector:
+    matchLabels:
+      app: mariadb
+  template:
+    metadata:
+      labels:
+        app: mariadb
+    spec:
+      containers:
+        - name: mariadb
+          image: mariadb:11.4
+          env:
+            - name: MARIADB_DATABASE
+              value: benchdb
+            - name: MARIADB_USER
+              value: bench
+            - name: MARIADB_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: mariadb-creds, key: password}
+            - name: MARIADB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: mariadb-creds, key: root-password}
+          ports:
+            - containerPort: 3306
+              name: sql
+          resources:
+            requests: {cpu: 250m, memory: 512Mi}
+            limits: {cpu: "1", memory: 1Gi}
+          readinessProbe:
+            exec:
+              command: ["healthcheck.sh", "--connect", "--innodb_initialized"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: mariadb-data
+        - name: init
+          configMap:
+            name: mariadb-init
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mariadb
+  namespace: default
+spec:
+  selector:
+    app: mariadb
+  ports:
+    - port: 3306
+      targetPort: 3306

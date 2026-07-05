@@ -1,0 +1,54 @@
+# Job de bench admis par Kueue (label queue-name) — la démo multi-tenant :
+# le job passe par la LocalQueue inference-lq et consomme le quota de la ClusterQueue.
+# Résultats écrits dans MariaDB (registre bench_runs).
+#   kubectl create configmap bench-src --from-file=bench.py=bench/bench.py
+# Relancer avec un nouveau run-id : kubectl delete job bench-run && kubectl apply -f job.yaml
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: bench-run
+  namespace: default
+  labels:
+    kueue.x-k8s.io/queue-name: inference-lq
+spec:
+  suspend: true            # Kueue lève la suspension à l'admission
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        app: bench
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: bench
+          image: python:3.12-slim
+          command: ["/bin/sh", "-c"]
+          args:
+            - pip install --quiet requests pymysql &&
+              export MARIADB_DSN="mariadb:3306:bench:${MARIADB_PASSWORD}:benchdb" &&
+              python /src/bench.py
+              --endpoint http://vllm-mistral:8000
+              --run-id "${RUN_ID:-job-$(date +%s)}"
+              --n "${N_REQUESTS:-30}" --max-tokens 128
+              --gpu-eur-hour 0.75
+          env:
+            - name: MARIADB_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: mariadb-creds, key: password}
+            - name: RUN_ID
+              value: ""
+            - name: N_REQUESTS
+              value: "30"
+            - name: BENCH_OUTDIR
+              value: /tmp/results
+          resources:
+            requests: {cpu: 500m, memory: 256Mi}
+            limits: {cpu: "1", memory: 512Mi}
+          volumeMounts:
+            - name: src
+              mountPath: /src
+      volumes:
+        - name: src
+          configMap:
+            name: bench-src

@@ -1,0 +1,83 @@
+# Règles d'alerte SLO du lab. Label release=kps requis (ruleSelector de kube-prometheus-stack).
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: gpu-inference-slo
+  namespace: monitoring
+  labels:
+    release: kps
+spec:
+  groups:
+    - name: gpu-inference.slo
+      rules:
+        - alert: VLLMDown
+          expr: absent(up{service="vllm-mistral"} == 1)
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "vLLM ne répond plus"
+            description: "L'endpoint d'inférence mistral-7b est down depuis 2 min. Runbook: runbooks/vllm-down.md"
+        - alert: VLLMLatencyP99High
+          expr: |
+            histogram_quantile(0.99, sum(rate(vllm:e2e_request_latency_seconds_bucket[5m])) by (le)) > 5
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Latence P99 > 5s"
+            description: "P99 e2e = {{ $value | printf \"%.2f\" }}s sur 5 min. SLO: 5s. Vérifier saturation KV cache / longueur de contexte."
+        - alert: GPUKVCacheSaturation
+          expr: vllm:gpu_cache_usage_perc > 0.90
+          for: 3m
+          labels:
+            severity: warning
+          annotations:
+            summary: "KV cache > 90%"
+            description: "Le cache KV vLLM est à {{ $value | printf \"%.0f\" }}%. Risque de preemption/queueing. Runbook: runbooks/kv-cache-saturation.md"
+        - alert: GPUPowerSustainedCap
+          expr: avg_over_time(DCGM_FI_DEV_POWER_USAGE[10m]) > 68
+          for: 10m
+          labels:
+            severity: info
+          annotations:
+            summary: "GPU au cap de puissance depuis 20 min"
+            description: "Puissance moyenne {{ $value | printf \"%.1f\" }}W (cap L4: 72W). Charge soutenue — vérifier si attendu (bench) ou anormal."
+        - alert: GPUTemperatureHigh
+          expr: DCGM_FI_DEV_GPU_TEMP > 85
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "GPU > 85°C"
+            description: "Température {{ $value }}°C — risque de throttling thermique."
+---
+# Routage des alertes du lab vers Telegram (bot Hermes, canal home).
+# Le secret telegram-bot-token doit exister dans monitoring (jamais commité).
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: telegram-lab
+  namespace: monitoring
+  labels:
+    release: kps
+spec:
+  route:
+    receiver: telegram
+    groupBy: ["alertname"]
+    groupWait: 15s
+    groupInterval: 2m
+    repeatInterval: 4h
+  receivers:
+    - name: telegram
+      telegramConfigs:
+        - botToken:
+            name: telegram-bot-token
+            key: token
+          chatID: 7734064984
+          parseMode: HTML
+          message: |-
+            {{ range .Alerts }}<b>{{ .Labels.alertname }}</b> [{{ .Labels.severity }}]
+            {{ .Annotations.summary }}
+            {{ .Annotations.description }}{{ end }}

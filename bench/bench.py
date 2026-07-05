@@ -64,7 +64,8 @@ def run(args) -> dict:
 
 def persist(result: dict):
     # Écriture MariaDB si DSN présent, sinon dump JSON local (jamais silencieux).
-    outdir = Path(__file__).parent / "results"
+    # BENCH_OUTDIR : nécessaire quand bench.py est monté depuis une ConfigMap (read-only).
+    outdir = Path(os.environ.get("BENCH_OUTDIR", Path(__file__).parent / "results"))
     outdir.mkdir(exist_ok=True)
     fp = outdir / f"{result['run_id']}.json"
     fp.write_text(json.dumps(result, indent=2))
