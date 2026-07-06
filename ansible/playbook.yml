@@ -33,6 +33,37 @@
       ansible.builtin.debug:
         var: smi.stdout_lines
 
+    - name: Persist /run/nvidia/driver bind-mount (driver.enabled=false needs host driver visible there, /run is tmpfs and gets wiped on reboot)
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/nvidia-driver-root-bind.service
+        content: |
+          [Unit]
+          Description=Bind-mount host root into /run/nvidia/driver for GPU Operator (driver.enabled=false, host-installed driver)
+          DefaultDependencies=no
+          After=local-fs.target
+          Before=k3s.service
+          Requires=local-fs.target
+
+          [Service]
+          Type=oneshot
+          RemainAfterExit=yes
+          ExecStartPre=/bin/mkdir -p /run/nvidia/driver
+          ExecStart=/bin/mount --rbind / /run/nvidia/driver
+          ExecStart=/bin/mount --make-rshared /run/nvidia/driver
+          ExecStop=/bin/umount -R /run/nvidia/driver
+
+          [Install]
+          WantedBy=multi-user.target
+        mode: "0644"
+      register: driver_bind_unit
+
+    - name: Enable and start nvidia-driver-root-bind.service
+      ansible.builtin.systemd:
+        name: nvidia-driver-root-bind.service
+        daemon_reload: "{{ driver_bind_unit is changed }}"
+        enabled: true
+        state: started
+
     - name: Install k3s (single-node, disable traefik to keep it lean)
       ansible.builtin.shell: |
         curl -sfL https://get.k3s.io | \

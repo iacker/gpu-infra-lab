@@ -50,7 +50,7 @@ flowchart TD
 
 | Domaine | Preuve dans ce dépôt |
 |---|---|
-| **Remédiation d'incidents** | 4 [runbooks](runbooks/) vécus (pas théoriques) : pod GPU tué sous charge, registre d'images mort, piège Helm `--reuse-values`, saturation KV cache |
+| **Remédiation d'incidents** | 5 [runbooks](runbooks/) vécus (pas théoriques) : pod GPU tué sous charge, registre d'images mort, piège Helm `--reuse-values`, saturation KV cache, [GPU Operator cassé après reboot](runbooks/reboot-driver-mount.md) |
 | **Observabilité** | [Dashboard Grafana](dashboards/) 14 panels ; chaque token compté deux fois (API + Prometheus) ; boucle fermée vérifiée |
 | **Astreinte / alerting** | [Règles SLO](manifests/alerting/) routées vers Telegram : vLLM down, P99 > 5 s, KV cache > 90 %, GPU au cap, température |
 | **GPU & HPC** | vLLM sur L4, comparatif FP16/FP8 mesuré au watt, `runtimeClassName` et deadlock single-GPU documentés |
