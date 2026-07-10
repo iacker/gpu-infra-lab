@@ -10,7 +10,9 @@
 # Prérequis : scw CLI configurée (`scw init`, une fois).
 set -euo pipefail
 
-INSTANCE_ID="${GPU_LAB_INSTANCE_ID:-b46c6d53-9738-4814-91e6-0c59438f7ab8}"
+# Renseigner via l'environnement (voir ansible/inventory.ini pour l'IP du nœud) :
+#   export SCW_INSTANCE_ID=<id-instance>  GPU_NODE_IP=<ip-publique>
+INSTANCE_ID="${SCW_INSTANCE_ID:?exporter SCW_INSTANCE_ID = id de instance Scaleway}"
 ZONE="${GPU_LAB_ZONE:-fr-par-1}"
 
 usage() { echo "usage: $0 {status|off|on|watch}"; exit 1; }
@@ -25,7 +27,7 @@ case "$1" in
     ;;
   off)
     echo "[burst] arrêt propre de la stack (drain des requêtes en cours)…"
-    ssh -o ConnectTimeout=10 root@51.15.139.112 \
+    ssh -o ConnectTimeout=10 "root@${GPU_NODE_IP:?exporter GPU_NODE_IP = ip publique du noeud}" \
       'k3s kubectl scale deploy/vllm-mistral --replicas=0 --timeout=60s || true' || true
     echo "[burst] poweroff + archivage (fin de la facturation GPU)…"
     scw instance server stop "$INSTANCE_ID" zone="$ZONE" --wait

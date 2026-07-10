@@ -10,6 +10,10 @@
     # >= v0.9 requis : v0.8.x embarque kube-rbac-proxy depuis gcr.io/kubebuilder (registre fermé -> ImagePullBackOff)
     kueue_version: "v0.10.1"
     repo_root: "{{ playbook_dir | dirname }}"
+    # Mot de passe admin Grafana : jamais en dur dans le repo.
+    # Fournir via l'environnement : GRAFANA_ADMIN_PASSWORD=... ansible-playbook ...
+    # (ou -e grafana_admin_password=... / vault).
+    grafana_admin_password: "{{ lookup('env', 'GRAFANA_ADMIN_PASSWORD') }}"
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   tasks:
@@ -41,7 +45,7 @@
           --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false \
           --set prometheus.prometheusSpec.podMonitorSelectorNilUsesHelmValues=false \
           --set prometheus.prometheusSpec.scrapeInterval=5s \
-          --set grafana.adminPassword=gpulab \
+          --set grafana.adminPassword="{{ grafana_admin_password }}" \
           --set alertmanager.alertmanagerSpec.alertmanagerConfigSelector.matchLabels.release=kps \
           --wait --timeout 10m
 

@@ -75,7 +75,7 @@ spec:
         - botToken:
             name: telegram-bot-token
             key: token
-          chatID: 7734064984
+          chatID: 0  # remplacer par votre chat_id Telegram (id numerique du canal/utilisateur)
           parseMode: HTML
           message: |-
             {{ range .Alerts }}<b>{{ .Labels.alertname }}</b> [{{ .Labels.severity }}]

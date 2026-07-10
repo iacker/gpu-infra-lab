@@ -9,7 +9,7 @@ qui vont avec. (Répond au volet « TCP/IP, DNS, BGP, load-balancing, IPv6 » de
 Client (Mac)
   │  SSH -L (tunnel chiffré, port-forward local)
   ▼
-Instance Scaleway L4 — IPv4 publique 51.15.139.112 /  IPv6 2001:bc8:711:680d::/64
+Instance Scaleway L4 — IPv4 publique <IP_PUBLIQUE> /  IPv6 <PREFIXE_IPV6>/64
   │  aucun port ouvert sauf 22 (surface d'attaque minimale)
   ▼
 k3s : CNI flannel (VXLAN) — pods en 10.42.0.0/16, services en 10.43.0.0/16

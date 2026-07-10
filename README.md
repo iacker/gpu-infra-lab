@@ -46,21 +46,22 @@ flowchart TD
     P --> AL["Alertmanager · 5 règles SLO"] -->|astreinte| T["Telegram"]
 ```
 
-## Ce que le lab démontre, preuve à l'appui
+## Ce que le lab démontre
 
-| Domaine | Preuve dans ce dépôt |
-|---|---|
-| **Remédiation d'incidents** | 5 [runbooks](runbooks/) vécus (pas théoriques) : pod GPU tué sous charge, registre d'images mort, piège Helm `--reuse-values`, saturation KV cache, [GPU Operator cassé après reboot](runbooks/reboot-driver-mount.md) |
-| **Observabilité** | [Dashboard Grafana](dashboards/) 14 panels ; chaque token compté deux fois (API + Prometheus) ; boucle fermée vérifiée |
-| **Astreinte / alerting** | [Règles SLO](manifests/alerting/) routées vers Telegram : vLLM down, P99 > 5 s, KV cache > 90 %, GPU au cap, température |
-| **GPU & HPC** | vLLM sur L4, comparatif FP16/FP8 mesuré au watt, `runtimeClassName` et deadlock single-GPU documentés |
-| **IaC** | [`ansible/`](ansible/) : instance nue → plateforme complète en 2 playbooks relançables |
-| **CI/CD GitLab** | [`.gitlab-ci.yml`](.gitlab-ci.yml) : lint (yaml/ansible/python/go) → build → deploy → bench via Kueue |
-| **Ordonnancement multi-tenant** | [Quota Kueue](manifests/kueue/) ; les benchs sont des Jobs **admis par la file** (`ADMITTED=True`) |
-| **Go / Python** | [`exporter/`](exporter/) (€/token, J/1k tokens) ; [`bench/`](bench/) (harness latence/débit/coût) |
-| **MariaDB** | [Registre `bench_runs`](bench/schema.sql) alimenté par les Jobs de bench |
-| **Réseau** | [`docs/reseau.md`](docs/reseau.md) : du tunnel SSH au design BGP/IPv6/InfiniBand multi-nœud |
-| **FinOps** | [`scripts/burst.sh`](scripts/burst.sh) : GPU loué à l'heure, allumé par rafales |
+Les incidents sont réels : cinq [runbooks](runbooks/) tirés de pannes provoquées ou subies —
+pod GPU tué sous charge, registre d'images mort, piège Helm `--reuse-values`, saturation du
+KV cache, [GPU Operator cassé après un reboot](runbooks/reboot-driver-mount.md). Pour les voir
+venir, un [dashboard Grafana](dashboards/) de 14 panels compte chaque token deux fois (API et
+Prometheus) et des [règles SLO](manifests/alerting/) partent en astreinte sur Telegram (vLLM
+down, P99 > 5 s, KV cache saturé, GPU au cap, température).
+
+Le reste de la stack rend ces mesures possibles : vLLM sur L4 avec comparatif FP16/FP8 mesuré
+au watt, provisionné par [Ansible](ansible/) en deux playbooks relançables, et une
+[CI GitLab](.gitlab-ci.yml) qui lint, build, déploie puis lance les benchs via
+[Kueue](manifests/kueue/). Ces benchs sont des Jobs admis par la file, écrits en Go et Python
+([exporter/](exporter/), [bench/](bench/)) et archivés dans [MariaDB](bench/schema.sql). Le
+volet [réseau](docs/reseau.md) va du tunnel SSH au design BGP/IPv6/InfiniBand multi-nœud, et le
+[FinOps](scripts/burst.sh) loue le GPU à l'heure, allumé par rafales.
 
 ## Incident vécu (résumé)
 
