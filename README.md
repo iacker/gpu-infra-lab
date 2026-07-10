@@ -1,4 +1,8 @@
-# GPU Inference Reliability Lab
+<p align="center">
+  <img src="assets/logo.png" alt="GPU Inference Reliability Lab" width="200">
+</p>
+
+<h1 align="center">GPU Inference Reliability Lab</h1>
 
 > Servir un LLM français sur un cloud français, et **prouver** qu'on sait l'observer, le
 > fiabiliser et en maîtriser le coût (€) et l'énergie (J) — au token près, au watt près.
